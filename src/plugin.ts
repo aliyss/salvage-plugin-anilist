@@ -1,6 +1,9 @@
 import { cached } from "./cache";
 import { fetchList, type Item, type ListName, type MediaType } from "./anilist";
+import { animeIdFromUrl, fetchEpisodes } from "./episodes";
 import { PluginError, serve } from "./sdk";
+
+import type { Data } from "./sdk";
 
 const LISTS: ListName[] = ["trending", "popular", "top"];
 const DEFAULT_PER_PAGE = 30;
@@ -21,23 +24,45 @@ function perPageOf(value: unknown): number {
 }
 
 /**
- * One command: the list the canvas shows. AniList needs no key, and nothing
- * about the entries is stored anywhere but in this plugin's own cache.
+ * The list the canvas shows. AniList needs no key, and nothing about the
+ * entries is stored anywhere but in this plugin's own cache.
  */
+async function catalogue(settings: Record<string, unknown>): Promise<Data> {
+  const type = typeOf(settings.type);
+  const list = listOf(settings.list);
+  const perPage = perPageOf(settings.perPage);
+
+  const items = await cached<Item[]>(`${type}-${list}-${perPage}`, () =>
+    fetchList({ type, list, perPage }),
+  );
+
+  return { kind: "anime-catalogue", text: JSON.stringify({ items }) };
+}
+
+/**
+ * The episodes of the anime this entry links to. The entry is only asked for
+ * its link, so the answer belongs to that note and to nothing else.
+ */
+async function episodes(linkUrl: string | undefined): Promise<Data> {
+  const id = animeIdFromUrl(linkUrl);
+  if (!id) {
+    throw new PluginError(
+      "bad_subject",
+      "This entry does not link to an AniList anime.",
+    );
+  }
+
+  return { kind: "anime-episodes", text: await fetchEpisodes(id) };
+}
+
 export default () =>
   serve(async ({ command, params }) => {
-    if (command !== "catalogue") {
-      throw new PluginError("unsupported", `Unknown command ${command}.`);
+    if (command === "catalogue") {
+      return await catalogue(params.settings ?? {});
+    }
+    if (command === "episodes") {
+      return await episodes(params.subject?.link?.url);
     }
 
-    const settings = params.settings ?? {};
-    const type = typeOf(settings.type);
-    const list = listOf(settings.list);
-    const perPage = perPageOf(settings.perPage);
-
-    const items = await cached<Item[]>(`${type}-${list}-${perPage}`, () =>
-      fetchList({ type, list, perPage }),
-    );
-
-    return { kind: "anime-catalogue", text: JSON.stringify({ items }) };
+    throw new PluginError("unsupported", `Unknown command ${command}.`);
   });

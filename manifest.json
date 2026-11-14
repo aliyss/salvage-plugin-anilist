@@ -2,10 +2,20 @@
   "pluginApiVersion": 1,
   "id": "salvage-plugin-anilist",
   "name": "AniList",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "runtime": { "entry": "dist/plugin.js" },
   "provides": [],
-  "contributes": [],
+  "contributes": [
+    {
+      "id": "episodes",
+      "slot": "entry.detail.link.action",
+      "when": { "link.host": ["anilist.co"] },
+      "ui": { "kind": "button", "label": "Episodes", "icon": "list" },
+      "view": "text",
+      "command": "episodes",
+      "timeoutMs": 20000
+    }
+  ],
   "canvas": {
     "command": "catalogue",
     "name": "Anime",
