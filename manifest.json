@@ -2,7 +2,7 @@
   "pluginApiVersion": 1,
   "id": "salvage-plugin-anilist",
   "name": "AniList",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "runtime": { "entry": "dist/plugin.js" },
   "provides": [],
   "contributes": [
@@ -11,9 +11,9 @@
       "slot": "entry.detail.link.action",
       "when": { "link.host": ["anilist.co"] },
       "ui": { "kind": "button", "label": "Episodes", "icon": "list" },
-      "view": "text",
+      "view": "episodes",
       "command": "episodes",
-      "timeoutMs": 20000
+      "timeoutMs": 30000
     }
   ],
   "canvas": {
