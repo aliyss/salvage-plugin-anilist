@@ -2,7 +2,7 @@
   "pluginApiVersion": 1,
   "id": "salvage-plugin-anilist",
   "name": "AniList",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "runtime": { "entry": "dist/plugin.js" },
   "provides": [],
   "contributes": [
@@ -20,37 +20,38 @@
     "command": "catalogue",
     "name": "Anime",
     "icon": "film",
-    "refreshMs": 21600000
+    "refreshMs": 21600000,
+    "settings": [
+      {
+        "key": "type",
+        "kind": "select",
+        "label": "Anime or manga",
+        "default": "ANIME",
+        "options": [
+          { "value": "ANIME", "label": "Anime" },
+          { "value": "MANGA", "label": "Manga" }
+        ]
+      },
+      {
+        "key": "list",
+        "kind": "select",
+        "label": "Which list",
+        "default": "trending",
+        "options": [
+          { "value": "trending", "label": "Trending now" },
+          { "value": "popular", "label": "Most popular" },
+          { "value": "top", "label": "Top rated" }
+        ]
+      },
+      {
+        "key": "perPage",
+        "kind": "number",
+        "label": "How many entries",
+        "default": 30,
+        "min": 5,
+        "max": 50
+      }
+    ]
   },
-  "settings": [
-    {
-      "key": "type",
-      "kind": "select",
-      "label": "Anime or manga",
-      "default": "ANIME",
-      "options": [
-        { "value": "ANIME", "label": "Anime" },
-        { "value": "MANGA", "label": "Manga" }
-      ]
-    },
-    {
-      "key": "list",
-      "kind": "select",
-      "label": "Which list",
-      "default": "trending",
-      "options": [
-        { "value": "trending", "label": "Trending now" },
-        { "value": "popular", "label": "Most popular" },
-        { "value": "top", "label": "Top rated" }
-      ]
-    },
-    {
-      "key": "perPage",
-      "kind": "number",
-      "label": "How many entries",
-      "default": 30,
-      "min": 5,
-      "max": 50
-    }
-  ]
+  "settings": []
 }
