@@ -1,0 +1,16 @@
+{
+  "name": "salvage-plugin-anilist",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "An anime and manga canvas for Salvage, fetched from AniList on your own computer.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "build": "bun build src/plugin.ts --target=bun --outfile dist/plugin.js"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.4.5"
+  }
+}
