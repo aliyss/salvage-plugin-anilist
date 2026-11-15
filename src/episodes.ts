@@ -7,6 +7,7 @@
 
 import { cached } from "./cache";
 import { PluginError, type Paging } from "./sdk";
+import { keepStills } from "./still";
 
 const ANILIST_API = "https://graphql.anilist.co";
 const KITSU_API = "https://kitsu.io/api/edge";
@@ -41,6 +42,8 @@ export type Episode = {
   description: string | null;
   /** Where the episode can be watched, when a site names it. */
   url: string | null;
+  /** The name of the still kept on this computer, once it has been filed. */
+  still?: string | null;
 };
 
 /** One episode as Kitsu describes it, before it is matched with AniList's. */
@@ -412,7 +415,15 @@ async function readEpisodes(id: number): Promise<Episode[]> {
       "AniList has no episodes for that anime yet.",
     );
   }
-  return episodes;
+
+  // The pictures are filed here as the list is read, so the next open draws
+  // them from this computer instead of asking the site that hosts them. A
+  // picture that cannot be kept leaves its own address in the answer.
+  const stills = await keepStills(episodes.map((episode) => episode.image));
+  return episodes.map((episode, index) => ({
+    ...episode,
+    still: stills[index] ?? null,
+  }));
 }
 
 /** How many episodes one answer carries, and the most it will carry. */
