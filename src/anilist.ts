@@ -34,6 +34,8 @@ export type Item = {
   color: string | null;
   rating: number | null;
   genres: string[];
+  /** The lists of the account the item was found in, shown beside its genres. */
+  tags: string[];
   overview: string | null;
   url: string | null;
 };
@@ -194,6 +196,7 @@ export function toItem(row: unknown, type: MediaType): Item | null {
     color: colorOf(row.coverImage),
     rating: ratingOf(row.averageScore),
     genres: genresOf(row.genres),
+    tags: [],
     overview: plainText(row.description, MAX_OVERVIEW),
     url: `${SITE}/${type === "MANGA" ? "manga" : "anime"}/${id}`,
   };
@@ -267,6 +270,170 @@ export async function fetchByIds(ids: string[]): Promise<Item[]> {
     const item = toItem(row, type);
     return item ? [item] : [];
   });
+}
+
+/**
+ * The entries of an account's own lists. The account is named, and a token is
+ * only needed for lists that are not public; whatever is sent stays between
+ * this computer and AniList.
+ */
+const PERSONAL_QUERY = `query ($userName: String, $type: MediaType) {
+  MediaListCollection(userName: $userName, type: $type) {
+    lists {
+      name
+      status
+      isCustomList
+      entries {
+        media {
+          id
+          type
+          title { romaji english native }
+          coverImage { extraLarge large color }
+          averageScore
+          startDate { year }
+          genres
+          description
+        }
+      }
+    }
+  }
+}`;
+
+/** The statuses a list may have, which is how a selected list is found. */
+export const LIST_STATUSES = [
+  "WATCHING",
+  "COMPLETED",
+  "PLANNING",
+  "PAUSED",
+  "DROPPED",
+  "REPEATING",
+] as const;
+
+/**
+ * Reads the lists an account keeps of one media type, keeping the statuses the
+ * canvas asked for. An item that sits in several of them is one card, tagged
+ * with every list it was found in.
+ */
+export async function fetchPersonal(input: {
+  type: MediaType;
+  userName: string;
+  token: string;
+  lists: string[];
+  perPage: number;
+}): Promise<Item[]> {
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    accept: "application/json",
+  };
+  if (input.token) {
+    headers.authorization = `Bearer ${input.token}`;
+  }
+
+  const response = await fetch(API, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      query: PERSONAL_QUERY,
+      variables: { userName: input.userName, type: input.type },
+    }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  }).catch(() => null);
+
+  if (!response) {
+    throw new PluginError("refused", "AniList could not be reached.");
+  }
+  if (response.status === 401 || response.status === 403) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new PluginError(
+      "refused",
+      "AniList refused those lists. Sign in again, or check the username.",
+    );
+  }
+  if (response.status === 429) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new PluginError(
+      "refused",
+      "AniList is rate limiting this computer. Try again in a minute.",
+    );
+  }
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new PluginError("refused", `AniList answered ${response.status}.`);
+  }
+
+  const raw = await new Response(response.body).text();
+  if (raw.length > MAX_BYTES) {
+    throw new PluginError("refused", "AniList answered with too much data.");
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    throw new PluginError(
+      "refused",
+      "AniList answered with something unreadable.",
+    );
+  }
+
+  const errors = isRecord(body) ? body.errors : null;
+  if (Array.isArray(errors) && errors.length > 0) {
+    const first = errors[0] as { message?: unknown } | null;
+    throw new PluginError(
+      "refused",
+      typeof first?.message === "string"
+        ? first.message.slice(0, 200)
+        : "AniList refused the query.",
+    );
+  }
+
+  const data = isRecord(body) ? body.data : null;
+  const collection = isRecord(data) ? data.MediaListCollection : null;
+  const lists = isRecord(collection) ? collection.lists : null;
+  if (!Array.isArray(lists)) {
+    throw new PluginError("no_data", "That AniList account has no lists.");
+  }
+
+  const wanted = new Set(input.lists);
+  const byId = new Map<string, Item>();
+  for (const list of lists) {
+    if (!isRecord(list)) {
+      continue;
+    }
+    const status = typeof list.status === "string" ? list.status : "";
+    if (!wanted.has(status)) {
+      continue;
+    }
+    const name = shortText(list.name, MAX_GENRE) ?? status;
+    const entries = Array.isArray(list.entries) ? list.entries : [];
+    for (const entry of entries) {
+      const media = isRecord(entry) ? entry.media : null;
+      const item = toItem(media, input.type);
+      if (!item) {
+        continue;
+      }
+      const seen = byId.get(item.id);
+      if (seen) {
+        if (!seen.tags.includes(name)) {
+          seen.tags.push(name);
+        }
+        continue;
+      }
+      byId.set(item.id, { ...item, tags: [name] });
+    }
+  }
+
+  const items = [...byId.values()].slice(
+    0,
+    Math.min(MAX_ITEMS, Math.max(1, Math.round(input.perPage))),
+  );
+  if (items.length === 0) {
+    throw new PluginError(
+      "no_data",
+      "AniList returned nothing for those lists.",
+    );
+  }
+  return items;
 }
 
 /** The entries of one AniList list, ready for the canvas. */

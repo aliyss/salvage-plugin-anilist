@@ -2,6 +2,8 @@ import { cached } from "./cache";
 import {
   fetchByIds,
   fetchList,
+  fetchPersonal,
+  LIST_STATUSES,
   type Item,
   type ListName,
   type MediaType,
@@ -13,14 +15,36 @@ import { PluginError, serve } from "./sdk";
 import type { Data, Paging, Subject } from "./sdk";
 
 const LISTS: ListName[] = ["trending", "popular", "top"];
+const PERSONAL = "personal";
+type CanvasList = ListName | typeof PERSONAL;
 const DEFAULT_PER_PAGE = 30;
 const MIN_PER_PAGE = 5;
 const MAX_PER_PAGE = 50;
 /** A card's metadata is asked for in one batch, never a request per card. */
 const MAX_BACKFILL = 40;
 
-function listOf(value: unknown): ListName {
+function listOf(value: unknown): CanvasList {
+  if (value === PERSONAL) {
+    return PERSONAL;
+  }
   return LISTS.includes(value as ListName) ? (value as ListName) : "trending";
+}
+
+/**
+ * The account lists a canvas shows. The canvas saves them as one string of the
+ * statuses ticked in its settings; nothing ticked means all of them.
+ */
+function listsOf(value: unknown): string[] {
+  const picked = (typeof value === "string" ? value.split(",") : [])
+    .map((entry) => entry.trim().toUpperCase())
+    .filter((entry): entry is string =>
+      (LIST_STATUSES as readonly string[]).includes(entry),
+    );
+  return picked.length > 0 ? picked : [...LIST_STATUSES];
+}
+
+function usernameOf(value: unknown): string {
+  return typeof value === "string" ? value.trim().slice(0, 40) : "";
 }
 
 function typeOf(value: unknown): MediaType {
@@ -39,10 +63,38 @@ function perPageOf(value: unknown): number {
 async function catalogue(
   settings: Record<string, unknown>,
   subject: Subject | undefined,
+  secrets: Record<string, string> | undefined,
 ): Promise<Data> {
   const type = typeOf(settings.type);
   const list = listOf(settings.list);
   const perPage = perPageOf(settings.perPage);
+
+  if (list === PERSONAL) {
+    const userName = usernameOf(settings.username);
+    if (!userName) {
+      throw new PluginError(
+        "bad_subject",
+        "Set your AniList username in this plugin's settings first.",
+      );
+    }
+    const lists = listsOf(settings.lists);
+    const items = await cached<Item[]>(
+      `personal-${type}-${userName.toLowerCase()}-${lists.join("+")}-${perPage}`,
+      () =>
+        fetchPersonal({
+          type,
+          userName,
+          token: secrets?.token ?? "",
+          lists,
+          perPage,
+        }),
+    );
+    await rememberItems(items);
+    return {
+      kind: "anime-catalogue",
+      text: JSON.stringify({ items, known: await knownFor(subject) }),
+    };
+  }
 
   const items = await cached<Item[]>(`${type}-${list}-${perPage}`, () =>
     fetchList({ type, list, perPage }),
@@ -109,7 +161,11 @@ async function knownFor(subject: Subject | undefined): Promise<Item[]> {
 export default () =>
   serve(async ({ command, params }) => {
     if (command === "catalogue") {
-      return await catalogue(params.settings ?? {}, params.subject);
+      return await catalogue(
+        params.settings ?? {},
+        params.subject,
+        params.secrets,
+      );
     }
     if (command === "episodes") {
       return await episodes(params.subject?.link?.url, params.paging);

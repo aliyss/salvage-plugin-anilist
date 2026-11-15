@@ -29,6 +29,7 @@ describe("an AniList row", () => {
       color: "#E4A15D",
       rating: 8.5,
       genres: ["Drama", "Mystery"],
+      tags: [],
       overview:
         "In the aftermath & aftermath. One day, Maomao senses an anomaly.",
       url: "https://anilist.co/anime/195516",

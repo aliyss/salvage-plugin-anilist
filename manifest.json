@@ -2,7 +2,7 @@
   "pluginApiVersion": 1,
   "id": "salvage-plugin-anilist",
   "name": "AniList",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "runtime": { "entry": "dist/plugin.js" },
   "provides": [],
   "contributes": [
@@ -40,7 +40,22 @@
         "options": [
           { "value": "trending", "label": "Trending now" },
           { "value": "popular", "label": "Most popular" },
-          { "value": "top", "label": "Top rated" }
+          { "value": "top", "label": "Top rated" },
+          { "value": "personal", "label": "Personal" }
+        ]
+      },
+      {
+        "key": "lists",
+        "kind": "multiselect",
+        "label": "Which of my lists",
+        "default": "WATCHING,COMPLETED,PLANNING",
+        "options": [
+          { "value": "WATCHING", "label": "Watching" },
+          { "value": "COMPLETED", "label": "Completed" },
+          { "value": "PLANNING", "label": "Planning" },
+          { "value": "PAUSED", "label": "Paused" },
+          { "value": "DROPPED", "label": "Dropped" },
+          { "value": "REPEATING", "label": "Rewatching" }
         ]
       },
       {
@@ -53,5 +68,19 @@
       }
     ]
   },
-  "settings": []
+  "settings": [
+    {
+      "key": "username",
+      "kind": "text",
+      "label": "AniList username",
+      "maxLength": 40,
+      "default": ""
+    },
+    {
+      "key": "token",
+      "kind": "secret",
+      "label": "AniList access token",
+      "maxLength": 200
+    }
+  ]
 }
