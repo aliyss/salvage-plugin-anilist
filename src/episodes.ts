@@ -5,6 +5,7 @@
  * nothing about the answer is stored.
  */
 
+import { cached } from "./cache";
 import { PluginError, type Paging } from "./sdk";
 
 const ANILIST_API = "https://graphql.anilist.co";
@@ -383,11 +384,21 @@ async function fetchMedia(id: number): Promise<Record<string, unknown>> {
 }
 
 /**
+ * One anime's episodes, read from the plugin's own cache when it is still
+ * young. Episodes change at most once a week, so a card reopened later is drawn
+ * from this folder instead of asking AniList and Kitsu again; a failure is
+ * never stored, so a list that could not be read is read again next time.
+ */
+export async function fetchEpisodes(id: number): Promise<Episode[]> {
+  return await cached(`episodes-${String(id)}`, () => readEpisodes(id));
+}
+
+/**
  * Reads one anime's episodes on this computer. The description and the still
  * come from Kitsu, which is asked only after AniList has answered; a Kitsu that
  * is down leaves the list without pictures rather than failing it.
  */
-export async function fetchEpisodes(id: number): Promise<Episode[]> {
+async function readEpisodes(id: number): Promise<Episode[]> {
   const media = await fetchMedia(id);
   const idMal = typeof media.idMal === "number" ? media.idMal : null;
   const kitsu = idMal
