@@ -2,7 +2,7 @@
   "pluginApiVersion": 1,
   "id": "salvage-plugin-anilist",
   "name": "AniList",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "runtime": { "entry": "dist/plugin.js" },
   "provides": [],
   "contributes": [
@@ -82,10 +82,17 @@
       "default": ""
     },
     {
+      "key": "clientId",
+      "kind": "text",
+      "label": "AniList app id",
+      "description": "Create an app on AniList and paste the id it is given. Only needed to sign in.",
+      "maxLength": 20,
+      "default": ""
+    },
+    {
       "key": "token",
       "kind": "secret",
-      "label": "AniList access token",
-      "description": "Only private lists need one. It is kept on this computer by the helper and never saved on your account.",
+      "label": "AniList token",
       "maxLength": 200
     }
   ],
@@ -93,7 +100,10 @@
     "url": "https://anilist.co/settings/developer",
     "urlLabel": "AniList developer settings",
     "callbackPath": "/v1/plugins/salvage-plugin-anilist/oauth/callback",
-    "note": "An app on AniList asks for a redirect URL. Paste the address below, then put the token it gives you in the field above.",
-    "check": "whoami"
+    "authorize": "https://anilist.co/api/v2/oauth/authorize?client_id={clientId}&response_type=token",
+    "clientIdKey": "clientId",
+    "secret": "token",
+    "check": "whoami",
+    "note": "Sign in on this computer only. AniList sends the token to the helper here, which keeps it beside the plugin; nothing about it reaches your account."
   }
 }
