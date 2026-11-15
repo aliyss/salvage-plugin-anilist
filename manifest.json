@@ -2,7 +2,7 @@
   "pluginApiVersion": 1,
   "id": "salvage-plugin-anilist",
   "name": "AniList",
-  "version": "0.10.4",
+  "version": "0.10.5",
   "runtime": { "entry": "dist/plugin.js" },
   "provides": [],
   "contributes": [

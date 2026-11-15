@@ -312,6 +312,29 @@ export const LIST_STATUSES = [
 ] as const;
 
 /**
+ * The status AniList gives a list. The list a person is working through is
+ * called Watching here and FOR CURRENT there, whichever medium it holds.
+ */
+const STATUS_ALIASES: Record<string, readonly string[]> = {
+  WATCHING: ["CURRENT"],
+  READING: ["CURRENT"],
+  REREADING: ["REPEATING"],
+};
+
+/** The statuses to keep, including the ones a ticked list is known as. */
+function wantedStatuses(lists: string[]): Set<string> {
+  const wanted = new Set(lists);
+  for (const [alias, statuses] of Object.entries(STATUS_ALIASES)) {
+    if (wanted.has(alias)) {
+      for (const status of statuses) {
+        wanted.add(status);
+      }
+    }
+  }
+  return wanted;
+}
+
+/**
  * Reads the lists an account keeps of one media type, keeping the statuses the
  * canvas asked for. An item that sits in several of them is one card, tagged
  * with every list it was found in.
@@ -396,7 +419,7 @@ export async function fetchPersonal(input: {
     throw new PluginError("no_data", "That AniList account has no lists.");
   }
 
-  const wanted = new Set(input.lists);
+  const wanted = wantedStatuses(input.lists);
   const byId = new Map<string, Item>();
   for (const list of lists) {
     if (!isRecord(list)) {
@@ -460,9 +483,28 @@ export async function fetchViewer(token: string): Promise<string> {
   if (!response) {
     throw new PluginError("refused", "AniList could not be reached.");
   }
-  if (response.status === 401 || response.status === 403) {
-    await response.body?.cancel().catch(() => undefined);
-    throw new PluginError("refused", "AniList did not accept that token.");
+  // AniList answers a token it will not take with 400 and a message inside,
+  // so the reason is read out rather than reported as a bare status.
+  if (
+    response.status === 400 ||
+    response.status === 401 ||
+    response.status === 403
+  ) {
+    const raw = await new Response(response.body).text().catch(() => "");
+    let message = "AniList did not accept that token.";
+    try {
+      const body: unknown = JSON.parse(raw);
+      const errors = isRecord(body) ? body.errors : null;
+      const first = Array.isArray(errors)
+        ? (errors[0] as { message?: unknown } | null)
+        : null;
+      if (typeof first?.message === "string") {
+        message = first.message.slice(0, 160);
+      }
+    } catch {
+      // Nothing readable came back, so the sentence above stands.
+    }
+    throw new PluginError("refused", message);
   }
   if (!response.ok) {
     await response.body?.cancel().catch(() => undefined);
