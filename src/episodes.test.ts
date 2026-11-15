@@ -117,6 +117,22 @@ describe("episodePage", () => {
     };
   }
 
+  test("answers everything when no page was asked for", () => {
+    const many = Array.from({ length: 25 }, (_, index) => ({
+      number: index + 1,
+      title: `Episode ${String(index + 1)}`,
+      date: null,
+      image: null,
+      description: null,
+      url: null,
+    }));
+
+    expect(read(episodePage(many))).toEqual({
+      numbers: many.map((episode) => episode.number),
+      hasMore: false,
+    });
+  });
+
   test("answers the whole list when it fits in one page", () => {
     expect(read(episodePage(episodes))).toEqual({
       numbers: [1, 2, 3, 4, 5],

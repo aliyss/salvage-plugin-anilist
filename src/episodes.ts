@@ -409,6 +409,12 @@ const EPISODE_PAGE = 20;
 
 /** One page of the list, as the answer text the app reads. */
 export function episodePage(episodes: Episode[], paging?: Paging): string {
+  // Without a page asked for, the whole list is the answer: a helper too old to
+  // pass `paging` on must not be handed a first page that claims there is more.
+  if (!paging) {
+    return JSON.stringify({ episodes, hasMore: false });
+  }
+
   const offset = Math.max(0, Math.round(paging?.offset ?? 0));
   const limit = Math.min(
     MAX_EPISODES,
