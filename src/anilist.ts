@@ -199,6 +199,76 @@ export function toItem(row: unknown, type: MediaType): Item | null {
   };
 }
 
+/** The same fields, for the items whose list no longer carries them. */
+const BY_IDS = `query ($ids: [Int]) {
+  Page(page: 1, perPage: 50) {
+    media(id_in: $ids) {
+      id
+      type
+      title { romaji english native }
+      coverImage { extraLarge large color }
+      averageScore
+      startDate { year }
+      genres
+      description
+    }
+  }
+}`;
+
+/**
+ * Reads the items whose ids it is given, whatever list they came from. A card
+ * whose item fell off a catalogue still needs its poster and its tags, and this
+ * is what asks for them when this computer has not kept them.
+ */
+export async function fetchByIds(ids: string[]): Promise<Item[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const response = await fetch(API, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json",
+    },
+    body: JSON.stringify({
+      query: BY_IDS,
+      variables: { ids: ids.slice(0, MAX_ITEMS).map(Number) },
+    }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  }).catch(() => null);
+  // A card that cannot be filled keeps the note it already shows.
+  if (!response?.ok) {
+    await response?.body?.cancel().catch(() => undefined);
+    return [];
+  }
+
+  const raw = await new Response(response.body).text();
+  if (raw.length > MAX_BYTES) {
+    return [];
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+
+  const data = isRecord(body) ? body.data : null;
+  const page = isRecord(data) ? data.Page : null;
+  const media = isRecord(page) ? page.media : null;
+  if (!Array.isArray(media)) {
+    return [];
+  }
+
+  return media.flatMap((row) => {
+    const type = isRecord(row) && row.type === "MANGA" ? "MANGA" : "ANIME";
+    const item = toItem(row, type);
+    return item ? [item] : [];
+  });
+}
+
 /** The entries of one AniList list, ready for the canvas. */
 export async function fetchList(input: {
   type: MediaType;
