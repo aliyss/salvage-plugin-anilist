@@ -2,7 +2,7 @@
   "pluginApiVersion": 1,
   "id": "salvage-plugin-anilist",
   "name": "AniList",
-  "version": "0.10.2",
+  "version": "0.10.4",
   "runtime": { "entry": "dist/plugin.js" },
   "provides": [],
   "contributes": [
@@ -73,14 +73,6 @@
     ]
   },
   "settings": [
-    {
-      "key": "username",
-      "kind": "text",
-      "label": "AniList username",
-      "description": "Only needed when you have not signed in: a public profile is read by this name. Signing in uses your own account instead.",
-      "maxLength": 40,
-      "default": ""
-    },
     {
       "key": "clientId",
       "kind": "text",

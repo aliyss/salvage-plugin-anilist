@@ -44,10 +44,6 @@ function listsOf(value: unknown): string[] {
   return picked.length > 0 ? picked : [...LIST_STATUSES];
 }
 
-function usernameOf(value: unknown): string {
-  return typeof value === "string" ? value.trim().slice(0, 40) : "";
-}
-
 function typeOf(value: unknown): MediaType {
   return value === "MANGA" ? "MANGA" : "ANIME";
 }
@@ -72,18 +68,16 @@ async function catalogue(
   const perPage = perPageOf(settings.perPage);
 
   if (list === PERSONAL) {
+    // The account is the one the token belongs to, so its name is asked for
+    // rather than typed anywhere.
     const token = secrets?.token ?? "";
-    // Signed in, the account is the one the token belongs to, whatever the
-    // name field says; without a token, a public profile is read by that name.
-    const userName = token
-      ? await fetchViewer(token)
-      : usernameOf(settings.username);
-    if (!userName) {
+    if (!token) {
       throw new PluginError(
         "bad_subject",
-        "Sign in to AniList, or set a username in this plugin's settings.",
+        "Sign in to AniList in this plugin's settings first.",
       );
     }
+    const userName = await fetchViewer(token);
     const lists = listsOf(settings.lists);
     const items = await cached<Item[]>(
       `personal-${type}-${userName.toLowerCase()}-${lists.join("+")}-${perPage}`,
