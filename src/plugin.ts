@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { cached } from "./cache";
 import {
   fetchByIds,
@@ -144,20 +146,30 @@ async function catalogue(
         "Sign in to AniList in this plugin's settings first.",
       );
     }
-    const userName = await fetchViewer(token);
+    const userName = await viewerName(token);
     const lists = listsOf(settings.lists);
-    // The whole set is read and ordered once, so a later page is a slice of an
-    // answer this computer already has rather than another round trip.
+    // The whole set is read once and kept as the account last changed it, so a
+    // later page is a slice of an answer this computer already has rather than
+    // another round trip. The sort is not part of the key: it only reorders the
+    // answer, and a key per view asked AniList for the whole library again
+    // through AniList's rate limit every time the canvas changed view.
     const all = await cached<Item[]>(
-      `personal-${type}-${userName.toLowerCase()}-${lists.join("+")}-${sort}`,
-      () => fetchPersonal({ type, userName, token, lists, sort }),
+      `personal-${type}-${userName.toLowerCase()}-${lists.join("+")}`,
+      () => fetchPersonal({ type, userName, token, lists, sort: "date" }),
     );
     await rememberItems(all);
-    const items = all.slice(offset, offset + limit);
+    // A view sorted by colour is one comparison over the answer already held.
+    const ordered =
+      sort === "color"
+        ? [...all].sort((left, right) =>
+            (left.color ?? "~").localeCompare(right.color ?? "~"),
+          )
+        : all;
+    const items = ordered.slice(offset, offset + limit);
     return catalogueAnswer({
       items: await withCovers(items),
       known: await withHeldCovers(known),
-      hasMore: offset + items.length < all.length,
+      hasMore: offset + items.length < ordered.length,
     });
   }
 
@@ -175,6 +187,17 @@ async function catalogue(
     known: await withHeldCovers(known),
     hasMore: items.length === limit,
   });
+}
+
+/**
+ * The account a token belongs to. A Personal canvas asked AniList for this on
+ * every page it loaded, which is one request per page for an answer that only
+ * changes when the token does; it is kept beside the catalogue for the same
+ * hours. The key is a digest of the token, so the token itself is never written.
+ */
+async function viewerName(token: string): Promise<string> {
+  const digest = createHash("sha256").update(token).digest("hex").slice(0, 12);
+  return await cached(`viewer-${digest}`, () => fetchViewer(token));
 }
 
 /**
