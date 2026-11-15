@@ -47,8 +47,8 @@ const SORTS: Record<ListName, string> = {
   top: "SCORE_DESC",
 };
 
-const QUERY = `query ($type: MediaType, $sort: [MediaSort], $perPage: Int) {
-  Page(page: 1, perPage: $perPage) {
+const QUERY = `query ($type: MediaType, $sort: [MediaSort], $perPage: Int, $page: Int) {
+  Page(page: $page, perPage: $perPage) {
     media(type: $type, sort: $sort) {
       id
       type
@@ -286,6 +286,7 @@ const PERSONAL_QUERY = `query ($userName: String, $type: MediaType) {
       status
       isCustomList
       entries {
+        updatedAt
         media {
           id
           type
@@ -335,16 +336,40 @@ function wantedStatuses(lists: string[]): Set<string> {
 }
 
 /**
+ * The order a canvas asks for: what changed most recently, or the covers in
+ * colour order so a wheel fills in a circle rather than at random.
+ */
+function sortedPersonal(
+  items: Item[],
+  updated: Map<string, number>,
+  sort: string,
+): Item[] {
+  if (sort === "date") {
+    return [...items].sort(
+      (left, right) =>
+        (updated.get(right.id) ?? 0) - (updated.get(left.id) ?? 0),
+    );
+  }
+  if (sort === "color") {
+    return [...items].sort((left, right) =>
+      (left.color ?? "~").localeCompare(right.color ?? "~"),
+    );
+  }
+  return items;
+}
+
+/**
  * Reads the lists an account keeps of one media type, keeping the statuses the
  * canvas asked for. An item that sits in several of them is one card, tagged
- * with every list it was found in.
+ * with every list it was found in, and the whole answer is ordered so the page
+ * the canvas draws first is the one it asked for.
  */
 export async function fetchPersonal(input: {
   type: MediaType;
   userName: string;
   token: string;
   lists: string[];
-  perPage: number;
+  sort: string;
 }): Promise<Item[]> {
   const headers: Record<string, string> = {
     "content-type": "application/json",
@@ -421,6 +446,7 @@ export async function fetchPersonal(input: {
 
   const wanted = wantedStatuses(input.lists);
   const byId = new Map<string, Item>();
+  const updated = new Map<string, number>();
   for (const list of lists) {
     if (!isRecord(list)) {
       continue;
@@ -437,6 +463,11 @@ export async function fetchPersonal(input: {
       if (!item) {
         continue;
       }
+      const changedAt =
+        isRecord(entry) && typeof entry.updatedAt === "number"
+          ? entry.updatedAt
+          : 0;
+      updated.set(item.id, Math.max(changedAt, updated.get(item.id) ?? 0));
       const seen = byId.get(item.id);
       if (seen) {
         if (!seen.tags.includes(name)) {
@@ -448,10 +479,7 @@ export async function fetchPersonal(input: {
     }
   }
 
-  const items = [...byId.values()].slice(
-    0,
-    Math.min(MAX_ITEMS, Math.max(1, Math.round(input.perPage))),
-  );
+  const items = sortedPersonal([...byId.values()], updated, input.sort);
   if (items.length === 0) {
     throw new PluginError(
       "no_data",
@@ -535,6 +563,8 @@ export async function fetchList(input: {
   type: MediaType;
   list: ListName;
   perPage: number;
+  /** Which page of the list, so the canvas can ask for the next one. */
+  page: number;
 }): Promise<Item[]> {
   const response = await fetch(API, {
     method: "POST",
@@ -548,6 +578,7 @@ export async function fetchList(input: {
         type: input.type,
         sort: [SORTS[input.list]],
         perPage: Math.min(MAX_ITEMS, Math.max(1, Math.round(input.perPage))),
+        page: Math.max(1, Math.round(input.page)),
       },
     }),
     signal: AbortSignal.timeout(TIMEOUT_MS),

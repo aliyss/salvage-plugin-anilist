@@ -14,6 +14,7 @@ import { knownItems, rememberItems } from "./items";
 import { PluginError, serve } from "./sdk";
 
 import type { Data, Paging, Subject } from "./sdk";
+import type { Item } from "./anilist";
 
 const LISTS: ListName[] = ["trending", "popular", "top"];
 const PERSONAL = "personal";
@@ -54,18 +55,58 @@ function perPageOf(value: unknown): number {
   return Math.min(MAX_PER_PAGE, Math.max(MIN_PER_PAGE, wanted));
 }
 
+/** The page a canvas asked for: where it starts, and how much it holds. */
+function pageOf(
+  paging: Paging | undefined,
+  perPage: number,
+): {
+  offset: number;
+  limit: number;
+  page: number;
+} {
+  const limit = Math.min(
+    MAX_PER_PAGE,
+    Math.max(MIN_PER_PAGE, Math.round(paging?.limit ?? perPage)),
+  );
+  const offset = Math.max(0, Math.round(paging?.offset ?? 0));
+  // AniList pages its public lists itself, so an offset becomes a page number.
+  return { offset, limit, page: Math.floor(offset / limit) + 1 };
+}
+
+/** The answer a canvas reads: a page of items, the notes it knows, and whether more follow. */
+function catalogueAnswer(input: {
+  items: Item[];
+  known: Item[];
+  hasMore: boolean;
+}): Data {
+  return {
+    kind: "anime-catalogue",
+    text: JSON.stringify({
+      items: input.items,
+      known: input.known,
+      hasMore: input.hasMore,
+    }),
+  };
+}
+
 /**
  * The list the canvas shows. AniList needs no key, and nothing about the
- * entries is stored anywhere but in this plugin's own cache.
+ * entries is stored anywhere but in this plugin's own cache. A canvas asks for
+ * one page at a time, so zooming out fetches the rest instead of the first
+ * screenful being the whole canvas.
  */
 async function catalogue(
   settings: Record<string, unknown>,
   subject: Subject | undefined,
   secrets: Record<string, string> | undefined,
+  paging: Paging | undefined,
 ): Promise<Data> {
   const type = typeOf(settings.type);
   const list = listOf(settings.list);
   const perPage = perPageOf(settings.perPage);
+  const sort = subject?.data?.sort ?? "date";
+  const { offset, limit, page } = pageOf(paging, perPage);
+  const known = await knownFor(subject);
 
   if (list === PERSONAL) {
     // The account is the one the token belongs to, so its name is asked for
@@ -79,19 +120,23 @@ async function catalogue(
     }
     const userName = await fetchViewer(token);
     const lists = listsOf(settings.lists);
-    const items = await cached<Item[]>(
-      `personal-${type}-${userName.toLowerCase()}-${lists.join("+")}-${perPage}`,
-      () => fetchPersonal({ type, userName, token, lists, perPage }),
+    // The whole set is read and ordered once, so a later page is a slice of an
+    // answer this computer already has rather than another round trip.
+    const all = await cached<Item[]>(
+      `personal-${type}-${userName.toLowerCase()}-${lists.join("+")}-${sort}`,
+      () => fetchPersonal({ type, userName, token, lists, sort }),
     );
-    await rememberItems(items);
-    return {
-      kind: "anime-catalogue",
-      text: JSON.stringify({ items, known: await knownFor(subject) }),
-    };
+    await rememberItems(all);
+    const items = all.slice(offset, offset + limit);
+    return catalogueAnswer({
+      items,
+      known,
+      hasMore: offset + items.length < all.length,
+    });
   }
 
-  const items = await cached<Item[]>(`${type}-${list}-${perPage}`, () =>
-    fetchList({ type, list, perPage }),
+  const items = await cached<Item[]>(`${type}-${list}-${limit}-${page}`, () =>
+    fetchList({ type, list, perPage: limit, page }),
   );
   // Every item seen is kept, so a note about one that later falls off the list
   // still has a poster and tags to draw.
@@ -99,12 +144,7 @@ async function catalogue(
 
   // The notes on this canvas are named in the ask, and the ones whose entry has
   // left the list are answered from what this computer remembers about them.
-  const known = await knownFor(subject);
-
-  return {
-    kind: "anime-catalogue",
-    text: JSON.stringify({ items, known }),
-  };
+  return catalogueAnswer({ items, known, hasMore: items.length === limit });
 }
 
 /**
@@ -176,6 +216,7 @@ export default () =>
         params.settings ?? {},
         params.subject,
         params.secrets,
+        params.paging,
       );
     }
     if (command === "whoami") {
