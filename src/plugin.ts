@@ -14,7 +14,6 @@ import { knownItems, rememberItems } from "./items";
 import { PluginError, serve } from "./sdk";
 
 import type { Data, Paging, Subject } from "./sdk";
-import type { Item } from "./anilist";
 
 const LISTS: ListName[] = ["trending", "popular", "top"];
 const PERSONAL = "personal";
