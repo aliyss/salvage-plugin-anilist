@@ -72,24 +72,22 @@ async function catalogue(
   const perPage = perPageOf(settings.perPage);
 
   if (list === PERSONAL) {
-    const userName = usernameOf(settings.username);
+    const token = secrets?.token ?? "";
+    // Signed in, the account is the one the token belongs to, so the name is
+    // read from AniList; without a token a public profile is read by the name
+    // the settings hold.
+    const userName =
+      usernameOf(settings.username) || (token ? await fetchViewer(token) : "");
     if (!userName) {
       throw new PluginError(
         "bad_subject",
-        "Set your AniList username in this plugin's settings first.",
+        "Sign in to AniList, or set a username in this plugin's settings.",
       );
     }
     const lists = listsOf(settings.lists);
     const items = await cached<Item[]>(
       `personal-${type}-${userName.toLowerCase()}-${lists.join("+")}-${perPage}`,
-      () =>
-        fetchPersonal({
-          type,
-          userName,
-          token: secrets?.token ?? "",
-          lists,
-          perPage,
-        }),
+      () => fetchPersonal({ type, userName, token, lists, perPage }),
     );
     await rememberItems(items);
     return {

@@ -2,7 +2,7 @@
   "pluginApiVersion": 1,
   "id": "salvage-plugin-anilist",
   "name": "AniList",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "runtime": { "entry": "dist/plugin.js" },
   "provides": [],
   "contributes": [
@@ -36,7 +36,7 @@
         "key": "list",
         "kind": "select",
         "label": "Which list",
-        "description": "Popular and trending are the same for everyone. Personal reads the lists of the account below.",
+        "description": "Popular and trending are the same for everyone. Personal reads your own lists.",
         "default": "trending",
         "options": [
           { "value": "trending", "label": "Trending now" },
@@ -77,7 +77,7 @@
       "key": "username",
       "kind": "text",
       "label": "AniList username",
-      "description": "Your AniList name. A public profile needs nothing else.",
+      "description": "Only needed when you have not signed in: a public profile is read by this name. Signing in uses your own account instead.",
       "maxLength": 40,
       "default": ""
     },
