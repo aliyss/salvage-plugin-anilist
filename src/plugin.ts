@@ -73,11 +73,11 @@ async function catalogue(
 
   if (list === PERSONAL) {
     const token = secrets?.token ?? "";
-    // Signed in, the account is the one the token belongs to, so the name is
-    // read from AniList; without a token a public profile is read by the name
-    // the settings hold.
-    const userName =
-      usernameOf(settings.username) || (token ? await fetchViewer(token) : "");
+    // Signed in, the account is the one the token belongs to, whatever the
+    // name field says; without a token, a public profile is read by that name.
+    const userName = token
+      ? await fetchViewer(token)
+      : usernameOf(settings.username);
     if (!userName) {
       throw new PluginError(
         "bad_subject",

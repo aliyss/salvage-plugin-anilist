@@ -1,6 +1,6 @@
 {
   "name": "salvage-plugin-anilist",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "private": true,
   "type": "module",
   "description": "An anime and manga canvas for Salvage, fetched from AniList on your own computer.",
