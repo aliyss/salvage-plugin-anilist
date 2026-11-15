@@ -3,6 +3,7 @@ import {
   fetchByIds,
   fetchList,
   fetchPersonal,
+  fetchViewer,
   LIST_STATUSES,
   type Item,
   type ListName,
@@ -52,7 +53,8 @@ function typeOf(value: unknown): MediaType {
 }
 
 function perPageOf(value: unknown): number {
-  const wanted = typeof value === "number" ? Math.round(value) : DEFAULT_PER_PAGE;
+  const wanted =
+    typeof value === "number" ? Math.round(value) : DEFAULT_PER_PAGE;
   return Math.min(MAX_PER_PAGE, Math.max(MIN_PER_PAGE, wanted));
 }
 
@@ -114,6 +116,23 @@ async function catalogue(
 }
 
 /**
+ * Whose token this computer holds. The app asks this before it offers the
+ * account's own lists, and stops offering them when AniList refuses the token.
+ */
+async function whoami(
+  secrets: Record<string, string> | undefined,
+): Promise<Data> {
+  const token = secrets?.token ?? "";
+  if (!token) {
+    throw new PluginError(
+      "bad_subject",
+      "No AniList token is saved on this computer yet.",
+    );
+  }
+  return { kind: "auth", text: await fetchViewer(token) };
+}
+
+/**
  * The episodes of the anime this entry links to. The entry is only asked for
  * its link, so the answer belongs to that note and to nothing else.
  */
@@ -146,11 +165,11 @@ async function knownFor(subject: Subject | undefined): Promise<Item[]> {
     .slice(0, MAX_BACKFILL);
 
   const known = await knownItems(ids);
-  const missing = ids.filter(
-    (id) => !known.some((item) => item.id === id),
-  );
+  const missing = ids.filter((id) => !known.some((item) => item.id === id));
   const fetched =
-    missing.length > 0 ? await fetchByIds(missing).catch(() => [] as Item[]) : [];
+    missing.length > 0
+      ? await fetchByIds(missing).catch(() => [] as Item[])
+      : [];
   if (fetched.length > 0) {
     await rememberItems(fetched);
   }
@@ -166,6 +185,9 @@ export default () =>
         params.subject,
         params.secrets,
       );
+    }
+    if (command === "whoami") {
+      return await whoami(params.secrets);
     }
     if (command === "episodes") {
       return await episodes(params.subject?.link?.url, params.paging);

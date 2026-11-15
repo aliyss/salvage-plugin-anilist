@@ -75,17 +75,20 @@ const NAMED: Record<string, string> = {
 };
 
 function decodeEntities(value: string): string {
-  return value.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (whole, body: string) => {
-    if (body.startsWith("#x") || body.startsWith("#X")) {
-      const code = Number.parseInt(body.slice(2), 16);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
-    }
-    if (body.startsWith("#")) {
-      const code = Number.parseInt(body.slice(1), 10);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
-    }
-    return NAMED[body.toLowerCase()] ?? whole;
-  });
+  return value.replace(
+    /&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g,
+    (whole, body: string) => {
+      if (body.startsWith("#x") || body.startsWith("#X")) {
+        const code = Number.parseInt(body.slice(2), 16);
+        return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
+      }
+      if (body.startsWith("#")) {
+        const code = Number.parseInt(body.slice(1), 10);
+        return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
+      }
+      return NAMED[body.toLowerCase()] ?? whole;
+    },
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -98,9 +101,7 @@ function plainText(value: unknown, max: number): string | null {
     return null;
   }
   const text = decodeEntities(
-    value
-      .replace(/<br\s*\/?>/gi, " ")
-      .replace(/<[^>]*>/g, " "),
+    value.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]*>/g, " "),
   )
     .replace(/\s+/g, " ")
     .trim();
@@ -173,7 +174,8 @@ function ratingOf(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
     return null;
   }
-  const rating = Math.round((value / SCORE_PER_UNIT) * RATING_STEP) / RATING_STEP;
+  const rating =
+    Math.round((value / SCORE_PER_UNIT) * RATING_STEP) / RATING_STEP;
   return rating <= MAX_RATING ? rating : null;
 }
 
@@ -436,6 +438,56 @@ export async function fetchPersonal(input: {
   return items;
 }
 
+const VIEWER_QUERY = `query { Viewer { id name } }`;
+
+/**
+ * Whose token this is. The plugin's settings page asks this before it offers
+ * the account's own lists, so a token AniList no longer accepts is not shown as
+ * one that works.
+ */
+export async function fetchViewer(token: string): Promise<string> {
+  const response = await fetch(API, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ query: VIEWER_QUERY }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  }).catch(() => null);
+
+  if (!response) {
+    throw new PluginError("refused", "AniList could not be reached.");
+  }
+  if (response.status === 401 || response.status === 403) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new PluginError("refused", "AniList did not accept that token.");
+  }
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new PluginError("refused", `AniList answered ${response.status}.`);
+  }
+
+  const raw = await new Response(response.body).text();
+  let body: unknown;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    throw new PluginError(
+      "refused",
+      "AniList answered with something unreadable.",
+    );
+  }
+  const data = isRecord(body) ? body.data : null;
+  const viewer = isRecord(data) ? data.Viewer : null;
+  const name = isRecord(viewer) ? shortText(viewer.name, MAX_GENRE) : null;
+  if (!name) {
+    throw new PluginError("refused", "AniList did not accept that token.");
+  }
+  return name;
+}
+
 /** The entries of one AniList list, ready for the canvas. */
 export async function fetchList(input: {
   type: MediaType;
@@ -486,7 +538,10 @@ export async function fetchList(input: {
   try {
     body = JSON.parse(raw);
   } catch {
-    throw new PluginError("refused", "AniList answered with something unreadable.");
+    throw new PluginError(
+      "refused",
+      "AniList answered with something unreadable.",
+    );
   }
 
   const errors = isRecord(body) ? body.errors : null;
@@ -507,12 +562,10 @@ export async function fetchList(input: {
     throw new PluginError("refused", "AniList answered without a list.");
   }
 
-  const items = media
-    .slice(0, MAX_ITEMS)
-    .flatMap((row) => {
-      const item = toItem(row, input.type);
-      return item ? [item] : [];
-    });
+  const items = media.slice(0, MAX_ITEMS).flatMap((row) => {
+    const item = toItem(row, input.type);
+    return item ? [item] : [];
+  });
 
   if (items.length === 0) {
     throw new PluginError("no_data", "AniList returned nothing for that list.");
