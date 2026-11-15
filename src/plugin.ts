@@ -10,8 +10,10 @@ import {
   type MediaType,
 } from "./anilist";
 import { animeIdFromUrl, episodePage, fetchEpisodes } from "./episodes";
+import { keepCovers } from "./covers";
 import { knownItems, rememberItems } from "./items";
 import { PluginError, serve } from "./sdk";
+import { keptStill } from "./still";
 
 import type { Data, Paging, Subject } from "./sdk";
 
@@ -72,10 +74,35 @@ function pageOf(
   return { offset, limit, page: Math.floor(offset / limit) + 1 };
 }
 
+/** An item with the cover filed here for it, which is what a card draws. */
+type CardItem = Item & { cover: string | null };
+
+/**
+ * The pictures of one page. A card never asks AniList for its cover: the plugin
+ * files the copy on this computer first, and the app draws what the helper
+ * serves back. A cover still missing when the page is answered leaves the card
+ * as the block of colour it already paints, and is filed on a later visit.
+ */
+async function withCovers(items: Item[]): Promise<CardItem[]> {
+  const covers = await keepCovers(items.map((item) => item.poster));
+  return items.map((item, index) => ({
+    ...item,
+    cover: covers[index] ?? null,
+  }));
+}
+
+/** The covers already held for the items a note of this canvas still points at. */
+async function withHeldCovers(items: Item[]): Promise<CardItem[]> {
+  const covers = await Promise.all(
+    items.map((item) => keptStill(item.poster)),
+  );
+  return items.map((item, index) => ({ ...item, cover: covers[index] }));
+}
+
 /** The answer a canvas reads: a page of items, the notes it knows, and whether more follow. */
 function catalogueAnswer(input: {
-  items: Item[];
-  known: Item[];
+  items: CardItem[];
+  known: CardItem[];
   hasMore: boolean;
 }): Data {
   return {
@@ -128,8 +155,8 @@ async function catalogue(
     await rememberItems(all);
     const items = all.slice(offset, offset + limit);
     return catalogueAnswer({
-      items,
-      known,
+      items: await withCovers(items),
+      known: await withHeldCovers(known),
       hasMore: offset + items.length < all.length,
     });
   }
@@ -143,7 +170,11 @@ async function catalogue(
 
   // The notes on this canvas are named in the ask, and the ones whose entry has
   // left the list are answered from what this computer remembers about them.
-  return catalogueAnswer({ items, known, hasMore: items.length === limit });
+  return catalogueAnswer({
+    items: await withCovers(items),
+    known: await withHeldCovers(known),
+    hasMore: items.length === limit,
+  });
 }
 
 /**

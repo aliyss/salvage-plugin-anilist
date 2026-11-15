@@ -5,9 +5,13 @@ import { toItem } from "./anilist";
 const row = {
   id: 195516,
   type: "ANIME",
-  title: { romaji: "Kusuriya no Hitorigoto 3rd Season", english: "The Apothecary Diaries Season 3" },
+  title: {
+    romaji: "Kusuriya no Hitorigoto 3rd Season",
+    english: "The Apothecary Diaries Season 3",
+  },
   coverImage: {
-    large: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx195516.jpg",
+    large:
+      "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx195516.jpg",
     extraLarge:
       "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx195516.jpg",
     color: "#e4a15d",
@@ -15,7 +19,8 @@ const row = {
   averageScore: 85,
   startDate: { year: 2026 },
   genres: ["Drama", "Mystery"],
-  description: "In the aftermath &amp; aftermath.<br><br>One day, Maomao senses an anomaly.",
+  description:
+    "In the aftermath &amp; aftermath.<br><br>One day, Maomao senses an anomaly.",
 };
 
 describe("an AniList row", () => {

@@ -42,11 +42,7 @@ export type Data = { kind: string; text: string };
 export class PluginError extends Error {
   constructor(
     readonly code:
-      | "no_data"
-      | "refused"
-      | "bad_subject"
-      | "unsupported"
-      | "internal",
+      "no_data" | "refused" | "bad_subject" | "unsupported" | "internal",
     message: string,
   ) {
     super(message);
@@ -95,7 +91,8 @@ export async function serve(
         ? { code: error.code, message: error.message }
         : {
             code: "internal",
-            message: error instanceof Error ? error.message : "The plugin failed.",
+            message:
+              error instanceof Error ? error.message : "The plugin failed.",
           };
     answer(request.id, { error: failure });
   }

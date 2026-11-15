@@ -48,7 +48,9 @@ describe("cached", () => {
       throw new Error("AniList is down");
     };
 
-    await expect(cached("episodes-1", failing)).rejects.toThrow("AniList is down");
+    await expect(cached("episodes-1", failing)).rejects.toThrow(
+      "AniList is down",
+    );
     expect(await cached("episodes-1", async () => ["answered"])).toEqual([
       "answered",
     ]);

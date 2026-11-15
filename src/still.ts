@@ -6,7 +6,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { mkdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const TIMEOUT_MS = 8_000;
@@ -54,6 +54,16 @@ async function filed(name: string): Promise<boolean> {
   }
 }
 
+/**
+ * The name a picture is already filed under here, found without fetching it.
+ * A page of covers is mostly ones already on disk, so this is what keeps a
+ * second visit to a canvas from asking for anything at all.
+ */
+export async function keptStill(url: string | null): Promise<string | null> {
+  const name = url ? stillName(url) : null;
+  return name && (await filed(name)) ? name : null;
+}
+
 /** Files one still here, answering the name it is filed under. */
 export async function keepStill(url: string | null): Promise<string | null> {
   const name = url ? stillName(url) : null;
@@ -81,7 +91,12 @@ export async function keepStill(url: string | null): Promise<string | null> {
       return null;
     }
     await mkdir(mediaDirectory(), { recursive: true });
-    await writeFile(join(mediaDirectory(), name), bytes).catch(() => undefined);
+    // Written beside its name and moved into place, so a process killed
+    // mid-write — the helper answers a plugin and exits — never leaves a
+    // half-written picture that later reads as one that is already filed.
+    const part = join(mediaDirectory(), `${name}.part`);
+    await writeFile(part, bytes).catch(() => undefined);
+    await rename(part, join(mediaDirectory(), name)).catch(() => undefined);
     return name;
   } catch {
     // A picture that cannot be kept leaves the site's own address in place.

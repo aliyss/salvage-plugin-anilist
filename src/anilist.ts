@@ -455,7 +455,12 @@ export async function fetchPersonal(input: {
     if (!wanted.has(status)) {
       continue;
     }
-    const name = shortText(list.name, MAX_GENRE) ?? status;
+    // A built-in list is a status, not a subject: "#watching" on every card
+    // says nothing about the anime and crowds out its genres, so only a list
+    // the account named itself tags its items. The status is still read, since
+    // which lists to keep is what put these items here.
+    const named = isRecord(list) && list.isCustomList === true;
+    const name = named ? (shortText(list.name, MAX_GENRE) ?? status) : null;
     const entries = Array.isArray(list.entries) ? list.entries : [];
     for (const entry of entries) {
       const media = isRecord(entry) ? entry.media : null;
@@ -470,12 +475,12 @@ export async function fetchPersonal(input: {
       updated.set(item.id, Math.max(changedAt, updated.get(item.id) ?? 0));
       const seen = byId.get(item.id);
       if (seen) {
-        if (!seen.tags.includes(name)) {
+        if (name && !seen.tags.includes(name)) {
           seen.tags.push(name);
         }
         continue;
       }
-      byId.set(item.id, { ...item, tags: [name] });
+      byId.set(item.id, { ...item, tags: name ? [name] : [] });
     }
   }
 
