@@ -15,6 +15,8 @@ const MAX_TITLE = 200;
 const MAX_OVERVIEW = 600;
 const MAX_GENRES = 4;
 const MAX_GENRE = 40;
+/** A cover colour is `#RRGGBB`, and nothing longer can be one. */
+const MAX_COLOR = 7;
 /** AniList scores out of a hundred; a card shows one decimal out of ten. */
 const SCORE_PER_UNIT = 10;
 const RATING_STEP = 10;
@@ -28,6 +30,8 @@ export type Item = {
   title: string;
   year: number | null;
   poster: string | null;
+  /** The leading colour of the cover, as AniList reports it. */
+  color: string | null;
   rating: number | null;
   genres: string[];
   overview: string | null;
@@ -47,7 +51,7 @@ const QUERY = `query ($type: MediaType, $sort: [MediaSort], $perPage: Int) {
       id
       type
       title { romaji english native }
-      coverImage { extraLarge large }
+      coverImage { extraLarge large color }
       averageScore
       startDate { year }
       genres
@@ -130,6 +134,14 @@ function posterOf(value: unknown): string | null {
   return url?.startsWith("https://") ? url : null;
 }
 
+function colorOf(value: unknown): string | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const color = shortText(value.color, MAX_COLOR);
+  return color && /^#[0-9a-f]{6}$/i.test(color) ? color.toUpperCase() : null;
+}
+
 function yearOf(value: unknown): number | null {
   if (!isRecord(value)) {
     return null;
@@ -179,6 +191,7 @@ export function toItem(row: unknown, type: MediaType): Item | null {
     title,
     year: yearOf(row.startDate),
     poster: posterOf(row.coverImage),
+    color: colorOf(row.coverImage),
     rating: ratingOf(row.averageScore),
     genres: genresOf(row.genres),
     overview: plainText(row.description, MAX_OVERVIEW),

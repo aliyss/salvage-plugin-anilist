@@ -10,6 +10,7 @@ const row = {
     large: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx195516.jpg",
     extraLarge:
       "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx195516.jpg",
+    color: "#e4a15d",
   },
   averageScore: 85,
   startDate: { year: 2026 },
@@ -25,6 +26,7 @@ describe("an AniList row", () => {
       year: 2026,
       poster:
         "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx195516.jpg",
+      color: "#E4A15D",
       rating: 8.5,
       genres: ["Drama", "Mystery"],
       overview:
@@ -39,6 +41,14 @@ describe("an AniList row", () => {
       "ANIME",
     );
     expect(item?.title).toBe("Re:Zero");
+  });
+
+  test("drops a cover colour that is not a hex triple", () => {
+    const item = toItem(
+      { ...row, coverImage: { ...row.coverImage, color: "blue" } },
+      "ANIME",
+    );
+    expect(item?.color).toBeNull();
   });
 
   test("points a manga at its own page and drops a blank score", () => {
