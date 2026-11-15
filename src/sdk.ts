@@ -18,6 +18,12 @@ export type Subject = {
   data?: Record<string, string>;
 };
 
+/**
+ * The page of a long answer the app asked for. A plugin that answers lists
+ * reads it so the first rows are drawn before the whole list is fetched.
+ */
+export type Paging = { offset?: number; limit?: number };
+
 export type Request = {
   id: string;
   command: string;
@@ -26,6 +32,7 @@ export type Request = {
     settings?: Record<string, unknown>;
     /** Secrets the helper keeps on this computer; never part of the settings. */
     secrets?: Record<string, string>;
+    paging?: Paging;
   };
 };
 

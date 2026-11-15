@@ -1,9 +1,9 @@
 import { cached } from "./cache";
 import { fetchList, type Item, type ListName, type MediaType } from "./anilist";
-import { animeIdFromUrl, fetchEpisodes } from "./episodes";
+import { animeIdFromUrl, episodePage, fetchEpisodes } from "./episodes";
 import { PluginError, serve } from "./sdk";
 
-import type { Data } from "./sdk";
+import type { Data, Paging } from "./sdk";
 
 const LISTS: ListName[] = ["trending", "popular", "top"];
 const DEFAULT_PER_PAGE = 30;
@@ -43,7 +43,10 @@ async function catalogue(settings: Record<string, unknown>): Promise<Data> {
  * The episodes of the anime this entry links to. The entry is only asked for
  * its link, so the answer belongs to that note and to nothing else.
  */
-async function episodes(linkUrl: string | undefined): Promise<Data> {
+async function episodes(
+  linkUrl: string | undefined,
+  paging: Paging | undefined,
+): Promise<Data> {
   const id = animeIdFromUrl(linkUrl);
   if (!id) {
     throw new PluginError(
@@ -52,7 +55,10 @@ async function episodes(linkUrl: string | undefined): Promise<Data> {
     );
   }
 
-  return { kind: "anime-episodes", text: await fetchEpisodes(id) };
+  return {
+    kind: "anime-episodes",
+    text: episodePage(await fetchEpisodes(id), paging),
+  };
 }
 
 export default () =>
@@ -61,7 +67,7 @@ export default () =>
       return await catalogue(params.settings ?? {});
     }
     if (command === "episodes") {
-      return await episodes(params.subject?.link?.url);
+      return await episodes(params.subject?.link?.url, params.paging);
     }
 
     throw new PluginError("unsupported", `Unknown command ${command}.`);

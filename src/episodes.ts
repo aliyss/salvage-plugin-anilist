@@ -5,7 +5,7 @@
  * nothing about the answer is stored.
  */
 
-import { PluginError } from "./sdk";
+import { PluginError, type Paging } from "./sdk";
 
 const ANILIST_API = "https://graphql.anilist.co";
 const KITSU_API = "https://kitsu.io/api/edge";
@@ -387,7 +387,7 @@ async function fetchMedia(id: number): Promise<Record<string, unknown>> {
  * come from Kitsu, which is asked only after AniList has answered; a Kitsu that
  * is down leaves the list without pictures rather than failing it.
  */
-export async function fetchEpisodes(id: number): Promise<string> {
+export async function fetchEpisodes(id: number): Promise<Episode[]> {
   const media = await fetchMedia(id);
   const idMal = typeof media.idMal === "number" ? media.idMal : null;
   const kitsu = idMal
@@ -401,5 +401,25 @@ export async function fetchEpisodes(id: number): Promise<string> {
       "AniList has no episodes for that anime yet.",
     );
   }
-  return JSON.stringify({ episodes });
+  return episodes;
+}
+
+/** How many episodes one answer carries, and the most it will carry. */
+const EPISODE_PAGE = 20;
+
+/** One page of the list, as the answer text the app reads. */
+export function episodePage(episodes: Episode[], paging?: Paging): string {
+  const offset = Math.max(0, Math.round(paging?.offset ?? 0));
+  const limit = Math.min(
+    MAX_EPISODES,
+    Math.max(1, Math.round(paging?.limit ?? EPISODE_PAGE)),
+  );
+  const page = episodes.slice(offset, offset + limit);
+
+  // `hasMore` is what lets the app ask for the rest by scrolling, instead of
+  // fetching a whole season before drawing its first line.
+  return JSON.stringify({
+    episodes: page,
+    hasMore: offset + page.length < episodes.length,
+  });
 }

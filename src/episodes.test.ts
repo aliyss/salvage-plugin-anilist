@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { animeIdFromUrl, mergeEpisodes } from "./episodes";
+import { animeIdFromUrl, episodePage, mergeEpisodes } from "./episodes";
 
 describe("animeIdFromUrl", () => {
   test("reads the id from an anime page", () => {
@@ -92,5 +92,56 @@ describe("mergeEpisodes", () => {
   test("answers nothing for an anime without episodes", () => {
     expect(mergeEpisodes({ episodes: 0 }, [])).toEqual([]);
     expect(mergeEpisodes(null, [])).toEqual([]);
+  });
+});
+
+describe("episodePage", () => {
+  const COUNT = 5;
+  const episodes = Array.from({ length: COUNT }, (_, index) => ({
+    number: index + 1,
+    title: `Episode ${String(index + 1)}`,
+    date: null,
+    image: null,
+    description: null,
+    url: null,
+  }));
+
+  function read(text: string): { numbers: number[]; hasMore: boolean } {
+    const body = JSON.parse(text) as {
+      episodes: { number: number }[];
+      hasMore: boolean;
+    };
+    return {
+      numbers: body.episodes.map((episode) => episode.number),
+      hasMore: body.hasMore,
+    };
+  }
+
+  test("answers the whole list when it fits in one page", () => {
+    expect(read(episodePage(episodes))).toEqual({
+      numbers: [1, 2, 3, 4, 5],
+      hasMore: false,
+    });
+  });
+
+  test("answers one page and says there is more", () => {
+    expect(read(episodePage(episodes, { offset: 2, limit: 2 }))).toEqual({
+      numbers: [3, 4],
+      hasMore: true,
+    });
+  });
+
+  test("answers the last page without asking for another", () => {
+    expect(read(episodePage(episodes, { offset: 4, limit: 2 }))).toEqual({
+      numbers: [5],
+      hasMore: false,
+    });
+  });
+
+  test("never answers an empty page", () => {
+    expect(read(episodePage(episodes, { offset: 0, limit: 0 }))).toEqual({
+      numbers: [1],
+      hasMore: true,
+    });
   });
 });
