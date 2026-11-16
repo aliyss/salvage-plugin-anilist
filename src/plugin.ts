@@ -22,6 +22,12 @@ import type { Data, Paging, Subject } from "./sdk";
 const LISTS: ListName[] = ["trending", "popular", "top"];
 const PERSONAL = "personal";
 type CanvasList = ListName | typeof PERSONAL;
+/**
+ * The cache key a personal list is kept under. The version is part of it, so an
+ * answer written by an older build — one whose items carried no list status —
+ * is not read in place of a fresh one for the next six hours.
+ */
+const PERSONAL_CACHE = "personal-v2";
 const DEFAULT_PER_PAGE = 30;
 const MIN_PER_PAGE = 5;
 const MAX_PER_PAGE = 50;
@@ -154,7 +160,7 @@ async function catalogue(
     // answer, and a key per view asked AniList for the whole library again
     // through AniList's rate limit every time the canvas changed view.
     const all = await cached<Item[]>(
-      `personal-${type}-${userName.toLowerCase()}-${lists.join("+")}`,
+      `${PERSONAL_CACHE}-${type}-${userName.toLowerCase()}-${lists.join("+")}`,
       () => fetchPersonal({ type, userName, token, lists, sort: "date" }),
     );
     await rememberItems(all);
