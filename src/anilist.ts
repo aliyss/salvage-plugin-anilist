@@ -36,6 +36,12 @@ export type Item = {
   genres: string[];
   /** The lists of the account the item was found in, shown beside its genres. */
   tags: string[];
+  /**
+   * The account's own list for the item, lowercased: `watching`, `completed`.
+   * It is not a subject like a genre, but a canvas that holds several lists
+   * fades the ones it is not about, so the list travels with the card.
+   */
+  status?: string;
   overview: string | null;
   url: string | null;
 };
@@ -480,7 +486,11 @@ export async function fetchPersonal(input: {
         }
         continue;
       }
-      byId.set(item.id, { ...item, tags: name ? [name] : [] });
+      byId.set(item.id, {
+        ...item,
+        tags: name ? [name] : [],
+        status: status.toLocaleLowerCase("en-US"),
+      });
     }
   }
 

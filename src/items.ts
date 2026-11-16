@@ -67,7 +67,10 @@ export async function rememberItems(items: Item[]): Promise<void> {
   const known = await readAll();
   for (const item of items) {
     delete known[item.id];
-    known[item.id] = item;
+    // The list an item sits in is the account's own history, so it is drawn from
+    // the answer and never written to this computer's cache.
+    const { status, ...recalled } = item;
+    known[item.id] = recalled;
   }
   const ids = Object.keys(known);
   const kept: Record<string, Item> = {};
