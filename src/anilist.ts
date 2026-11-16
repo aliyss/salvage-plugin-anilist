@@ -9,6 +9,8 @@ import { PluginError } from "./sdk";
 const API = "https://graphql.anilist.co";
 const SITE = "https://anilist.co";
 const TIMEOUT_MS = 12_000;
+/** AniList reports an entry's edit time in seconds since the epoch. */
+const MS_PER_SECOND = 1000;
 const MAX_BYTES = 1_500_000;
 const MAX_ITEMS = 50;
 const MAX_TITLE = 200;
@@ -44,6 +46,13 @@ export type Item = {
   status?: string;
   overview: string | null;
   url: string | null;
+  /**
+   * When the account last touched the item, in milliseconds: the moment its own
+   * list entry was updated — an episode marked, a status or a score changed.
+   * The date view places the card there, so a canvas of the account's lists
+   * reads as the account's history rather than as the moment it was opened.
+   */
+  activityAt?: number;
 };
 
 /** The AniList sort each list name means. */
@@ -476,7 +485,7 @@ export async function fetchPersonal(input: {
       }
       const changedAt =
         isRecord(entry) && typeof entry.updatedAt === "number"
-          ? entry.updatedAt
+          ? entry.updatedAt * MS_PER_SECOND
           : 0;
       updated.set(item.id, Math.max(changedAt, updated.get(item.id) ?? 0));
       const seen = byId.get(item.id);
@@ -484,12 +493,19 @@ export async function fetchPersonal(input: {
         if (name && !seen.tags.includes(name)) {
           seen.tags.push(name);
         }
+        // An item in two lists was last touched when the later one changed.
+        if (changedAt > (seen.activityAt ?? 0)) {
+          seen.activityAt = changedAt;
+        }
         continue;
       }
       byId.set(item.id, {
         ...item,
         tags: name ? [name] : [],
         status: status.toLocaleLowerCase("en-US"),
+        // Absent rather than zero: a card with no reported time is placed on the
+        // canvas's own clock, not at the epoch.
+        ...(changedAt > 0 ? { activityAt: changedAt } : {}),
       });
     }
   }
