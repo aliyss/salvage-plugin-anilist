@@ -268,6 +268,35 @@ async function knownFor(subject: Subject | undefined): Promise<Item[]> {
   return [...known, ...fetched];
 }
 
+/**
+ * The description and cover of the title an entry links to, answered only for
+ * the fields a page's own preview lacked. AniList needs no key for this, and
+ * one id is one batched read — the same call the canvas already makes.
+ */
+async function preview(linkUrl: string | undefined): Promise<Data> {
+  const id = animeIdFromUrl(linkUrl);
+  if (!id) {
+    throw new PluginError(
+      "bad_subject",
+      "This entry does not link to an AniList title.",
+    );
+  }
+
+  const [item] = await fetchByIds([String(id)]);
+  if (!item) {
+    throw new PluginError("no_data", "AniList has no title at that link.");
+  }
+
+  return {
+    kind: "link-preview",
+    text: JSON.stringify({
+      title: item.title,
+      description: item.overview,
+      imageUrl: item.poster,
+    }),
+  };
+}
+
 export default () =>
   serve(async ({ command, params }) => {
     if (command === "catalogue") {
@@ -283,6 +312,9 @@ export default () =>
     }
     if (command === "episodes") {
       return await episodes(params.subject?.link?.url, params.paging);
+    }
+    if (command === "preview") {
+      return await preview(params.subject?.link?.url);
     }
 
     throw new PluginError("unsupported", `Unknown command ${command}.`);
